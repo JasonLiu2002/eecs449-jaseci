@@ -1,4 +1,6 @@
-node dialogue_state {
+import {*} with "./faq.jac";
+
+node dialogue_state:cai_state {
     can bi_enc.infer;
     can tfm_ner.extract_entity;
 
@@ -62,6 +64,34 @@ node dialogue_root:dialogue_state {
     }
 }
 
+node cai_state {
+    has name;
+    can init_wlk_ctx {
+        new_wlk_ctx = {
+            "intent": null,
+            "entities": {},
+            "prev_state": null,
+            "next_state": null,
+            "respond": false
+        };
+        if ("entities" in visitor.wlk_ctx) {
+            // Carry over extracted entities from previous interaction
+            new_wlk_ctx["entities"] = visitor.wlk_ctx["entities"];
+        }
+        visitor.wlk_ctx = new_wlk_ctx;
+    }
+    can nlu {}
+    can process {
+        if (visitor.wlk_ctx["prev_state"]): visitor.wlk_ctx["respond"] = true;
+        else {
+            visitor.wlk_ctx["next_state"] = net.root();
+            visitor.wlk_ctx["prev_state"] = here;
+        }
+    }
+    can nlg {}
+}
+
+
 
 edge intent_transition {
     has intent;
@@ -73,7 +103,7 @@ edge entity_transition {
 
 
 
-graph dialogue_system {
+graph tesla_ai {
     has anchor dialogue_root;
     spawn {
         dialogue_root = spawn node::dialogue_root;
@@ -81,8 +111,6 @@ graph dialogue_system {
         td_confirmation = spawn node::td_confirmation;
         td_confirmed = spawn node::td_confirmed;
         td_canceled = spawn node::td_canceled;
-
-        how_to_order_state = spawn node::how_to_order_state;
 
         dialogue_root +[intent_transition(intent="test drive")]+> test_drive_state;
         test_drive_state +[intent_transition(intent="cancel")]+> td_canceled;
@@ -92,17 +120,20 @@ graph dialogue_system {
         td_confirmation +[intent_transition(intent="no")]+> test_drive_state;
         td_confirmation +[intent_transition(intent="cancel")]+> td_canceled;
 
-        dialogue_root +[intent_transition(intent="order a tesla")]+> how_to_order_state;
+        faq_root = spawn graph::faq;
+        dialogue_root +[intent_transition(intent="i have a question")]+> faq_root;
     }
 }
+
 
 
 walker init {
     root {
-        spawn here ++> graph::dialogue_system;
+        spawn here ++> graph::tesla_ai;
         spawn here walker::talk;
     }
 }
+
 
 
 walker talk {
@@ -112,7 +143,7 @@ walker talk {
     root {
         take --> node::dialogue_root;
     }
-    dialogue_state {
+    cai_state {
         if (!question) {
             question = std.input("Question (Ctrl-C to exit)> ");
             here::init_wlk_ctx;
