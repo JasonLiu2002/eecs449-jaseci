@@ -13,7 +13,15 @@ node dialogue_state {
     }
 
     can extract_entities {
-        // Entity extraction logic will be added a bit later on.
+        res = tfm_ner.extract_entity(visitor.question);
+        for ent in res {
+            ent_type = ent["entity_value"];
+            ent_text = ent["entity_text"];
+            if (!(ent_type in visitor.wlk_ctx["entities"])){
+                visitor.wlk_ctx["entities"][ent_type] = [];
+            }
+            visitor.wlk_ctx["entities"][ent_type].l::append(ent_text);
+        }
     }
 
     can init_wlk_ctx {
@@ -58,6 +66,12 @@ node dialogue_root:dialogue_state {
 edge intent_transition {
     has intent;
 }
+
+edge entity_transition {
+    has entities;
+}
+
+
 
 graph dialogue_system {
     has anchor dialogue_root;
@@ -189,8 +203,3 @@ node td_canceled:dialogue_state {
         visitor.response = "No worries. We look forward to hearing from you in the future!";
     }
 }
-
-edge entity_transition {
-    has entities;
-}
-
